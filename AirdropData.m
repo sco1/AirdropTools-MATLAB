@@ -154,6 +154,12 @@ classdef AirdropData < handle
             dragpatch = patch('Vertices', vertices, 'Faces', [1 2 3 4], ...
                                 'FaceColor', 'green', 'FaceAlpha', 0.3, ...
                                 'ButtonDownFcn', {@AirdropData.startdragwindow, ax, ls});
+                            
+            % Add a listener to the XData of the drag patch to make sure
+            % its width doesn't get adjusted. Seems to be triggered by the
+            % data boundary check on drag, but I can't narrow down the 
+            % specific issue. This mitigates the issue for now
+            widthlistener = addlistener(dragpatch, 'XData', 'PostSet', @(s,e)AirdropData.checkdragwindowwidth(e, windowlength));
             
             % Unless passed a tertiary, False argument, use uiwait to 
             % allow the user to manipulate the axes and window lines as 
@@ -309,6 +315,13 @@ classdef AirdropData < handle
             elseif newpatchX(2) > maxX
                 newdx = patchObj.XData(2) - maxX;  % Subtract from right boundary only
                 patchObj.XData = patchObj.XData - newdx;
+            end
+        end
+        
+        function checkdragwindowwidth(ed, width)
+            badwidth = abs(ed.AffectedObject.XData(1) - ed.AffectedObject.XData(2)) ~= width;
+            if badwidth
+                ed.AffectedObject.XData(2:3) = [1, 1]*ed.AffectedObject.XData(1) + width;
             end
         end
     end
