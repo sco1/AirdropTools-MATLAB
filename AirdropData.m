@@ -69,8 +69,8 @@ classdef AirdropData < handle
             ax = ls.Parent;
             fig = ax.Parent;
             
-            % TODO: Respect existing WindowButtonUpFcn if it's there
-            fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback on figure creation
+            oldbuttonup = fig.WindowButtonUpFcn;  % Store existing WindowButtonUpFcn
+            fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback
             
             % Create our window lines, set the default line X locations at
             % 25% and 75% of the axes limits
@@ -106,7 +106,7 @@ classdef AirdropData < handle
             % Clean up
             delete([xlisten, ylisten]);
             delete(dragline)
-            fig.WindowButtonUpFcn = '';
+            fig.WindowButtonUpFcn = oldbuttonup;
         end
 
 
