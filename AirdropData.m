@@ -74,16 +74,17 @@ classdef AirdropData < handle
             
             % Create our window lines, set the default line X locations at
             % 25% and 75% of the axes limits
+            % TODO: Make a background patch for the draglines
             currxlim = xlim(ax);
             axeswidth = currxlim(2) - currxlim(1);
             dragline(1) = line(ones(1, 2)*axeswidth*0.25, ylim(ax), ...
-                            'Color', 'g', 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, ax));
+                            'Color', 'g', 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, ax, ls));
             dragline(2) = line(ones(1, 2)*axeswidth*0.75, ylim(ax), ...
-                            'Color', 'g', 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, ax));
+                            'Color', 'g', 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, ax, ls));
             
             % Add appropriate listeners to the X and Y axes to ensure
             % window lines are visible and the appropriate height
-            xlisten = addlistener(ax, 'XLim', 'PostSet', @(s,e)AirdropData.checklinesx(ax, dragline));
+            xlisten = addlistener(ax, 'XLim', 'PostSet', @(s,e)AirdropData.checklinesx(ls, ax, dragline));
             ylisten = addlistener(ax, 'YLim', 'PostSet', @(s,e)AirdropData.changelinesy(ax, dragline));
             
             % Unless passed a secondary, False argument, use uiwait to 
@@ -97,10 +98,9 @@ classdef AirdropData < handle
             end
             
             % Set output
-            % TODO: Make sure we don't go beyond our data, should be caught
-            % by the drag functions but make sure there aren't edge cases
             dataidx(1) = find(ls.XData >= dragline(1).XData(1), 1);
             dataidx(2) = find(ls.XData >= dragline(2).XData(1), 1);
+            
             dataidx = sort(dataidx);
             
             % Clean up
@@ -134,7 +134,12 @@ classdef AirdropData < handle
             % dialog box is closed.
             ax = ls.Parent;
             fig = ax.Parent;
-            fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback on figure creation
+            
+            oldbuttonup = fig.WindowButtonUpFcn;  % Store existing WindowButtonUpFcn
+            fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback
+            
+            % TODO: Check to make sure the window width isn't wider than
+            % the width of the plotted data
             
             currxlim = xlim(ax);
             currylim = ylim(ax);
@@ -148,7 +153,7 @@ classdef AirdropData < handle
                         leftx, currylim(2)];      % Top left corner
             dragpatch = patch('Vertices', vertices, 'Faces', [1 2 3 4], ...
                                 'FaceColor', 'green', 'FaceAlpha', 0.3, ...
-                                'ButtonDownFcn', {@AirdropData.startdragwindow, ax});
+                                'ButtonDownFcn', {@AirdropData.startdragwindow, ax, ls});
             
             % Unless passed a tertiary, False argument, use uiwait to 
             % allow the user to manipulate the axes and window lines as 
@@ -172,11 +177,11 @@ classdef AirdropData < handle
     end
     
     methods (Static, Hidden, Access = protected)
-        function startdrag(lineObj, ax)
+        function startdrag(draggedline, ax, plottedline)
             % Helper function for data windowing, sets figure
             % WindowButtonMotionFcn callback to dragline helper
             % while line is being clicked on & dragged
-            ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.linedrag(ax, lineObj);
+            ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.linedrag(ax, draggedline, plottedline);
         end
         
         
@@ -188,13 +193,14 @@ classdef AirdropData < handle
         end
         
         
-        function checklinesx(ax, dragline)
+        function checklinesx(lineObj, ax, dragline)
             % Helper function for data windowing, checks the X indices of
             % the vertical lines to make sure they're still within the X
             % axis limits of the data axes object
             currxlim = ax.XLim;
             currlinex(1) = dragline(1).XData(1);
             currlinex(2) = dragline(2).XData(1);
+            
             
             % Set X coordinate of any line outside the axes limits to the
             % axes limit
@@ -214,6 +220,25 @@ classdef AirdropData < handle
                dragline(2).XData = [1, 1]*currxlim(2);
             end
             
+            % Set X coordinate of any line beyond the boundary of the
+            % lineseries to the closest boundary
+            minX = min(lineObj.XData);
+            maxX = max(lineObj.XData);            
+            if currlinex(1) < minX
+                dragline(1).XData = [1, 1]*minX;
+            end
+            
+            if currlinex(1) > maxX
+                dragline(1).XData = [1, 1]*maxX;
+            end
+            
+            if currlinex(2) < minX
+                dragline(2).XData = [1, 1]*minX;
+            end
+            
+            if currlinex(2) > maxX
+                dragline(2).XData = [1, 1]*maxX;
+            end 
         end
         
         
@@ -225,7 +250,7 @@ classdef AirdropData < handle
         end
 
         
-        function linedrag(ax, lineObj)
+        function linedrag(ax, draggedline, plottedline)
             % Helper function for data windowing, updates the x coordinate
             % of the dragged line to the current location of the mouse
             % button
@@ -233,28 +258,37 @@ classdef AirdropData < handle
             
             % Prevent dragging outside of the current axes limits
             if currentX < ax.XLim(1)
-                lineObj.XData = [1, 1]*ax.XLim(1);
+                draggedline.XData = [1, 1]*ax.XLim(1);
             elseif currentX > ax.XLim(2)
-                lineObj.XData = [1, 1]*ax.XLim(2);
+                draggedline.XData = [1, 1]*ax.XLim(2);
             else
-                lineObj.XData = [1, 1]*currentX;
+                draggedline.XData = [1, 1]*currentX;
+            end
+            
+            minX = min(plottedline.XData);
+            maxX = max(plottedline.XData);
+            % Prevent dragging outside of the data limits
+            if currentX < minX
+                draggedline.XData = [1, 1]*minX;
+            elseif currentX > maxX
+                draggedline.XData = [1, 1]*maxX;
             end
         end
         
-        function startdragwindow(patchObj, ed, ax)
-            ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.dragwindow(ax, patchObj);
+        function startdragwindow(patchObj, ed, ax, ls)
+            ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.dragwindow(ax, patchObj, ls);
             patchObj.UserData = ed.IntersectionPoint(1);  % Store initial click location to find a delta later
         end
         
         
-        function dragwindow(ax, patchObj)
+        function dragwindow(ax, patchObj, plottedline)
             oldmouseX = patchObj.UserData;
             newmouseX = ax.CurrentPoint(1);
             patchObj.UserData = newmouseX;
             
             dx = newmouseX - oldmouseX;
             newpatchX = patchObj.XData + dx; 
-            
+          
             % Prevent dragging outside of the current axes limits
             if newpatchX(1) < ax.XLim(1)
                 newdx = patchObj.XData - ax.XLim(1);
@@ -264,6 +298,17 @@ classdef AirdropData < handle
                 patchObj.XData = patchObj.XData + newdx;
             else
                 patchObj.XData = newpatchX;
+            end
+            
+            % Prevent dragging beyond the limits of the plotted lineseries
+            minX = min(plottedline.XData);
+            maxX = max(plottedline.XData);
+            if newpatchX(1) < minX
+                newdx = patchObj.XData(1) - minX;  % Subtract from left boundary only
+                patchObj.XData = patchObj.XData - newdx;
+            elseif newpatchX(2) > maxX
+                newdx = patchObj.XData(2) - maxX;  % Subtract from right boundary only
+                patchObj.XData = patchObj.XData - newdx;
             end
         end
     end
