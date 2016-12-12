@@ -66,26 +66,40 @@ classdef AirdropData < handle
             % execution. If waitboxbool is not false or does not exist,
             % UIWAIT and MSGBOX are used to block execution until the
             % dialog box is closed.
-            ax = ls.Parent;
-            fig = ax.Parent;
+            h.ls = ls;
+            h.ax = h.ls.Parent;
+            h.fig = h.ax.Parent;
             
-            oldbuttonup = fig.WindowButtonUpFcn;  % Store existing WindowButtonUpFcn
-            fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback
+            oldbuttonup = h.fig.WindowButtonUpFcn;  % Store existing WindowButtonUpFcn
+            h.fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback
             
             % Create our window lines, set the default line X locations at
             % 25% and 75% of the axes limits
-            % TODO: Make a background patch for the draglines
-            currxlim = xlim(ax);
+            currxlim = xlim(h.ax);
             axeswidth = currxlim(2) - currxlim(1);
-            dragline(1) = line(ones(1, 2)*axeswidth*0.25, ylim(ax), ...
-                            'Color', 'g', 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, ax, ls));
-            dragline(2) = line(ones(1, 2)*axeswidth*0.75, ylim(ax), ...
-                            'Color', 'g', 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, ax, ls));
+            leftx = axeswidth*0.25;
+            rightx = axeswidth*0.75;
+            h.dragline(1) = line(ones(1, 2)*leftx, ylim(h.ax), 'Color', 'g', ...
+                                 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, h));
+            h.dragline(2) = line(ones(1, 2)*rightx, ylim(h.ax), 'Color', 'g', ...
+                                 'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, h));
+            
+            % Add a background patch to highlight the currently windowed region
+            currylim = ylim(h.ax);
+            vertices = [leftx,  currylim(1); ...  % Bottom left corner
+                        rightx, currylim(1); ...  % Bottom right corner
+                        rightx, currylim(2); ...  % Top right corner
+                        leftx,  currylim(2)];     % Top left corner
+            h.bgpatch = patch('Vertices', vertices, 'Faces', [1 2 3 4], ...
+                              'FaceColor', 'green', 'FaceAlpha', 0.05, 'EdgeColor', 'none');
+            uistack(h.bgpatch, 'bottom');  % Make sure we're not covering the draglines
+            listen.patchx = addlistener(h.dragline, 'XData', 'PostSet', @(s,e)AirdropData.updatebgpatch(h));
+            listen.patchy = addlistener(h.dragline, 'XData', 'PostSet', @(s,e)AirdropData.updatebgpatch(h));
             
             % Add appropriate listeners to the X and Y axes to ensure
             % window lines are visible and the appropriate height
-            xlisten = addlistener(ax, 'XLim', 'PostSet', @(s,e)AirdropData.checklinesx(ls, ax, dragline));
-            ylisten = addlistener(ax, 'YLim', 'PostSet', @(s,e)AirdropData.changelinesy(ax, dragline));
+            listen.x = addlistener(h.ax, 'XLim', 'PostSet', @(s,e)AirdropData.checklinesx(h));
+            listen.y = addlistener(h.ax, 'YLim', 'PostSet', @(s,e)AirdropData.changelinesy(h));
             
             % Unless passed a secondary, False argument, use uiwait to 
             % allow the user to manipulate the axes and window lines as 
@@ -98,15 +112,16 @@ classdef AirdropData < handle
             end
             
             % Set output
-            dataidx(1) = find(ls.XData >= dragline(1).XData(1), 1);
-            dataidx(2) = find(ls.XData >= dragline(2).XData(1), 1);
+            dataidx(1) = find(ls.XData >= h.dragline(1).XData(1), 1);
+            dataidx(2) = find(ls.XData >= h.dragline(2).XData(1), 1);
             
             dataidx = sort(dataidx);
             
             % Clean up
-            delete([xlisten, ylisten]);
-            delete(dragline)
-            fig.WindowButtonUpFcn = oldbuttonup;
+            delete([listen.x listen.y]);
+            delete([listen.patchx listen.patchy]);
+            delete([h.dragline h.bgpatch]);
+            h.fig.WindowButtonUpFcn = oldbuttonup;
         end
 
 
@@ -152,7 +167,7 @@ classdef AirdropData < handle
                         rightx, currylim(2); ...  % Top right corner
                         leftx, currylim(2)];      % Top left corner
             dragpatch = patch('Vertices', vertices, 'Faces', [1 2 3 4], ...
-                                'FaceColor', 'green', 'FaceAlpha', 0.3, ...
+                                'FaceColor', 'green', 'FaceAlpha', 0.05, ...
                                 'ButtonDownFcn', {@AirdropData.startdragwindow, ax, ls});
                             
             % Add a listener to the XData of the drag patch to make sure
@@ -177,17 +192,18 @@ classdef AirdropData < handle
             dataidx = sort(dataidx);
             
             % Clean up
+            delete(widthlistener)
             delete(dragpatch)
-            fig.WindowButtonUpFcn = '';
+            fig.WindowButtonUpFcn = oldbuttonup;
         end
     end
     
     methods (Static, Hidden, Access = protected)
-        function startdrag(draggedline, ax, plottedline)
+        function startdrag(draggedline, h)
             % Helper function for data windowing, sets figure
             % WindowButtonMotionFcn callback to dragline helper
             % while line is being clicked on & dragged
-            ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.linedrag(ax, draggedline, plottedline);
+            h.ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.linedrag(h.ax, draggedline, h.ls);
         end
         
         
@@ -199,60 +215,60 @@ classdef AirdropData < handle
         end
         
         
-        function checklinesx(lineObj, ax, dragline)
+        function checklinesx(h)
             % Helper function for data windowing, checks the X indices of
             % the vertical lines to make sure they're still within the X
             % axis limits of the data axes object
-            currxlim = ax.XLim;
-            currlinex(1) = dragline(1).XData(1);
-            currlinex(2) = dragline(2).XData(1);
+            currxlim = h.ax.XLim;
+            currlinex(1) = h.dragline(1).XData(1);
+            currlinex(2) = h.dragline(2).XData(1);
             
             
             % Set X coordinate of any line outside the axes limits to the
             % axes limit
             if currlinex(1) < currxlim(1)
-                dragline(1).XData = [1, 1]*currxlim(1);
+                h.dragline(1).XData = [1, 1]*currxlim(1);
             end
             
             if currlinex(1) > currxlim(2)
-                dragline(1).XData = [1, 1]*currxlim(2);
+                h.dragline(1).XData = [1, 1]*currxlim(2);
             end
             
             if currlinex(2) < currxlim(1)
-                dragline(2).XData = [1, 1]*currxlim(1);
+                h.dragline(2).XData = [1, 1]*currxlim(1);
             end
             
             if currlinex(2) > currxlim(2)
-               dragline(2).XData = [1, 1]*currxlim(2);
+               h.dragline(2).XData = [1, 1]*currxlim(2);
             end
             
             % Set X coordinate of any line beyond the boundary of the
             % lineseries to the closest boundary
-            minX = min(lineObj.XData);
-            maxX = max(lineObj.XData);            
+            minX = min(h.ls.XData);
+            maxX = max(h.ls.XData);            
             if currlinex(1) < minX
-                dragline(1).XData = [1, 1]*minX;
+                h.dragline(1).XData = [1, 1]*minX;
             end
             
             if currlinex(1) > maxX
-                dragline(1).XData = [1, 1]*maxX;
+                h.dragline(1).XData = [1, 1]*maxX;
             end
             
             if currlinex(2) < minX
-                dragline(2).XData = [1, 1]*minX;
+                h.dragline(2).XData = [1, 1]*minX;
             end
             
             if currlinex(2) > maxX
-                dragline(2).XData = [1, 1]*maxX;
+                h.dragline(2).XData = [1, 1]*maxX;
             end 
         end
         
         
-        function changelinesy(ax, dragline)
+        function changelinesy(h)
             % Helper function for data windowing, sets the height of both
             % vertical lines to the height of the axes object
-            dragline(1).YData = ylim(ax);
-            dragline(2).YData = ylim(ax);
+            h.dragline(1).YData = ylim(h.ax);
+            h.dragline(2).YData = ylim(h.ax);
         end
 
         
@@ -280,6 +296,17 @@ classdef AirdropData < handle
                 draggedline.XData = [1, 1]*maxX;
             end
         end
+        
+        
+        function updatebgpatch(h)
+            draglinex = sort([h.dragline(1).XData(1), h.dragline(2).XData(1)]);
+            currylim = ylim(h.ax);
+            h.bgpatch.Vertices = [draglinex(1) currylim(1); ...
+                                  draglinex(2) currylim(1); ...
+                                  draglinex(2) currylim(2); ...
+                                  draglinex(1) currylim(2)];
+        end
+        
         
         function startdragwindow(patchObj, ed, ax, ls)
             ax.Parent.WindowButtonMotionFcn = @(s,e)AirdropData.dragwindow(ax, patchObj, ls);
