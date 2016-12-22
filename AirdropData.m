@@ -270,6 +270,15 @@ classdef AirdropData < handle
         end
         
         
+        function p = saveargparse(varargin)
+            p = inputParser();
+            p.addParameter('savefilepath', '', @ischar);
+            p.addParameter('SaveAsClass', true, @islogical);
+            p.addParameter('verboseoutput', false, @islogical);
+            p.parse(varargin{:});
+        end
+        
+        
         function save(savefilepath, dataObj, isverbose, saveasclass)
             if saveasclass
                 save(savefilepath, 'dataObj');
