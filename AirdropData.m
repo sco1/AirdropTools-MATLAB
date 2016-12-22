@@ -11,37 +11,6 @@ classdef AirdropData < handle
                 clear dataObj
             end
         end
-        
-        function save(dataObj, savefilepath, isverbose)
-            save(savefilepath, 'dataObj');
-            
-            if ~exist('isverbose', 'var')
-                isverbose = false;
-            end
-            
-            if isverbose
-                fprintf('%s class instance saved to ''%s''\n', class(dataObj), savefilepath);
-            end
-        end
-        
-        function save_noclass(dataObj, savefilepath, isverbose)
-            % Get property names and use them to loop through using dynamic
-            % field referencing
-            allprops = properties(dataObj);
-            for ii = 1:length(allprops)
-                output.(allprops{ii}) = dataObj.(allprops{ii});
-            end
-            
-            save(savefilepath, '-struct', 'output');
-            
-            if ~exist('isverbose', 'var')
-                isverbose = false;
-            end
-            
-            if isverbose
-                fprintf('%s property data saved to ''%s''\n', class(dataObj), savefilepath);
-            end
-        end
     end
     
     methods (Static)
