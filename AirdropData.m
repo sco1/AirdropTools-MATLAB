@@ -197,6 +197,7 @@ classdef AirdropData < handle
             fig.WindowButtonUpFcn = oldbuttonup;
         end
         
+        
         function [varargout] = subdir(varargin)
             narginchk(0,1);
             nargoutchk(0,1);
@@ -265,6 +266,31 @@ classdef AirdropData < handle
                 end
             elseif nargout == 1
                 varargout{1} = Files;
+            end
+        end
+        
+        
+        function save(savefilepath, dataObj, isverbose, saveasclass)
+            if saveasclass
+                save(savefilepath, 'dataObj');
+            else
+                % Save property values only, not class instance
+                propstosave = properties(dataObj);  % Get list of public properties
+                
+                for ii = 1:length(propstosave)
+                    prop = propstosave{ii};
+                    tmp.(prop) = dataObj.(prop);
+                end
+
+                save(savefilepath, '-struct', 'tmp');
+            end
+
+            if isverbose
+                if saveasclass
+                    fprintf('%s object instance saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
+                else
+                    fprintf('%s object public properties saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
+                end
             end
         end
     end
