@@ -270,7 +270,7 @@ classdef AirdropData < handle
         end
         
         
-        function p = saveargparse(varargin)
+        function [p] = saveargparse(varargin)
             p = inputParser();
             p.addParameter('savefilepath', '', @ischar);
             p.addParameter('SaveAsClass', true, @islogical);
@@ -300,6 +300,20 @@ classdef AirdropData < handle
                 else
                     fprintf('%s object public properties saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
                 end
+            end
+        end
+        
+        
+        function [chkbool, idx] = matclassinstancechk(filepath, classtype)
+            matfileinfo = whos('-file', filepath);
+            classtest = strcmp({matfileinfo(:).class}, classtype);
+            if any(classtest)
+                % Only return index to first class instance
+                chkbool = true;
+                idx = find(classtest, 1);
+            else
+                chkbool = false;
+                idx = [];
             end
         end
     end
