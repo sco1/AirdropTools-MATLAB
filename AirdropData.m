@@ -1,4 +1,4 @@
-classdef AirdropData < handle
+classdef AirdropData < handle & matlab.mixin.Copyable
     % Top level class definition for various helper methods
     % e.g. Data windowing, trimming, etc. so we're not copy/pasting things
     % between class definitions
@@ -15,15 +15,15 @@ classdef AirdropData < handle
     
     methods (Static)
         function [date] = getdate()
-            % Generate current local timestamp and format according to
+            % Generate UTC time
             % ISO 8601: yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
             if ~verLessThan('MATLAB', '8.4')  % datetime added in R2014b
-                timenow = datetime('now', 'TimeZone', 'local');
-                formatstr = sprintf('yyyy-mm-ddTHH:MM:SS%sZ', char(tzoffset(timenow)));
+                timenow = datetime('now', 'TimeZone', 'UTC');
+                formatstr = sprintf('yyyy-mm-ddTHH:MM:SSZ');
             else
                 UTCoffset = -java.util.Date().getTimezoneOffset/60;  % See what Java thinks your TZ offset is
                 timenow = clock;
-                formatstr = sprintf('yyyy-mm-ddTHH:MM:SS%i:00Z', UTCoffset);
+                formatstr = sprintf('yyyy-mm-ddTHH:MM:SSZ');
             end
             
             date = datestr(timenow, formatstr);
@@ -452,27 +452,6 @@ classdef AirdropData < handle
             end
         end
         
-        function p = generateparser
-            p = inputParser;
-            
-            defaultbordersize      = 20; % Border size, pixels
-            defaultbuttonwidth     = 80; % Button width, pixels
-            defaultbuttonheight    = 40; % Button height, pixels
-            defaultbuttonspacing   = 20; % Spacing between buttons, pixels
-            defaultprompttxtheight = 20; % Prompt text height, pixels
-            defaultdialogtitle = 'Please Select an Option:'; % Dialog box title, string
-            defaultbutton = 1;  % Button selected by default, integer
-            includecancelbutton = false; % Include cancel button, logical
-            
-            addOptional(p, 'BorderSize', defaultbordersize, @isnumeric);
-            addOptional(p, 'ButtonWidth', defaultbuttonwidth, @isnumeric);
-            addOptional(p, 'ButtonHeight', defaultbuttonheight, @isnumeric);
-            addOptional(p, 'ButtonSpacing', defaultbuttonspacing, @isnumeric);
-            addOptional(p, 'PromptTextHeight', defaultprompttxtheight, @isnumeric);
-            addOptional(p, 'DialogTitle', defaultdialogtitle, @ischar);
-            addOptional(p, 'DefaultButton', defaultbutton); % Can be string or integer, behavior handled in main function
-            addOptional(p, 'CancelButton', includecancelbutton, @islogical);
-        end
         
         function setdefaultbutton(btnHandle)
             % Helper function ripped from questboxdlg
@@ -516,6 +495,29 @@ classdef AirdropData < handle
             
             % Make sure it is stacked on the bottom.
             uistack(h1, 'bottom');
+        end
+        
+        
+        function p = generateparser
+            p = inputParser;
+            
+            defaultbordersize      = 20; % Border size, pixels
+            defaultbuttonwidth     = 80; % Button width, pixels
+            defaultbuttonheight    = 40; % Button height, pixels
+            defaultbuttonspacing   = 20; % Spacing between buttons, pixels
+            defaultprompttxtheight = 20; % Prompt text height, pixels
+            defaultdialogtitle = 'Please Select an Option:'; % Dialog box title, string
+            defaultbutton = 1;  % Button selected by default, integer
+            includecancelbutton = false; % Include cancel button, logical
+            
+            addOptional(p, 'BorderSize', defaultbordersize, @isnumeric);
+            addOptional(p, 'ButtonWidth', defaultbuttonwidth, @isnumeric);
+            addOptional(p, 'ButtonHeight', defaultbuttonheight, @isnumeric);
+            addOptional(p, 'ButtonSpacing', defaultbuttonspacing, @isnumeric);
+            addOptional(p, 'PromptTextHeight', defaultprompttxtheight, @isnumeric);
+            addOptional(p, 'DialogTitle', defaultdialogtitle, @ischar);
+            addOptional(p, 'DefaultButton', defaultbutton); % Can be string or integer, behavior handled in main function
+            addOptional(p, 'CancelButton', includecancelbutton, @islogical);
         end
         
         
@@ -714,6 +716,7 @@ classdef AirdropData < handle
             end
         end
         
+        
         function checkdragwindowwidth(ed, width)
             % Check the width of the drag patch to make sure it doesn't get
             % adjusted. For a still-unknown reason there is a scenario where
@@ -724,6 +727,7 @@ classdef AirdropData < handle
                 ed.AffectedObject.XData(2:3) = [1, 1]*ed.AffectedObject.XData(1) + width;
             end
         end
+        
         
         function [p] = genpath_local(d)
             % Modified genpath that doesn't ignore:
