@@ -524,7 +524,7 @@ classdef AirdropData < handle & matlab.mixin.Copyable
         function [p] = saveargparse(varargin)
             p = inputParser();
             p.addParameter('savefilepath', '', @ischar);
-            p.addParameter('SaveAsClass', true, @islogical);
+            p.addParameter('saveasclass', true, @islogical);
             p.addParameter('verboseoutput', false, @islogical);
             p.parse(varargin{:});
         end
