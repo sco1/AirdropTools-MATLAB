@@ -1,16 +1,8 @@
-classdef AirdropData < handle & matlab.mixin.Copyable
+classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
     % Top level class definition for various helper methods
     % e.g. Data windowing, trimming, etc. so we're not copy/pasting things
     % between class definitions
     properties
-    end
-    
-    methods
-        function [dataObj] = AirdropData()
-            if nargout == 0
-                clear dataObj
-            end
-        end
     end
     
     methods (Static)
@@ -26,7 +18,7 @@ classdef AirdropData < handle & matlab.mixin.Copyable
                 formatstr = sprintf('yyyy-mm-ddTHH:MM:SSZ');
             end
             
-            date = datestr(timenow, formatstr);
+            date = string(datestr(timenow, formatstr));
         end
         
         
