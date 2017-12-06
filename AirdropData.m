@@ -100,7 +100,7 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
             if nargin == 2 && ~waitboxBool
                 uiwait
             else
-                uiwait(msgbox('Window Region of Interest Then Press OK'))
+                uiwait(msgbox('Window Region of Interest, Then Press OK'))
             end
             
             % Set output
@@ -175,7 +175,7 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
             if nargin == 3 && ~waitboxBool
                 uiwait
             else
-                uiwait(msgbox('Window Region of Interest Then Press OK'))
+                uiwait(msgbox('Window Region of Interest, Then Press OK'))
             end
             
             % Set output
@@ -187,6 +187,62 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
             delete(widthlistener)
             delete(dragpatch)
             fig.WindowButtonUpFcn = oldbuttonup;
+        end
+        
+        
+        function [xidx] = pickx(ls, waitboxBool)
+            % Execution is blocked by UIWAIT and MSGBOX to allow the user 
+            % to zoom/pan the axes and manipulate the window lines as 
+            % desired. Once the dialog is closed the data indices of the 
+            % window lines in the XData of the input lineseries is returned
+            % as dataidx.
+            %
+            % An optional secondary boolean input can be provided to
+            % control whether or not execution is blocked by UIWAIT and
+            % MSGBOX or simpy by UIWAIT. If waitboxbool is passed as false,
+            % only UIIWAIT is called and it is assumed that the user has
+            % something else set up to call UIRESUME to resume MATLAB's
+            % execution. If waitboxbool is not false or does not exist,
+            % UIWAIT and MSGBOX are used to block execution until the
+            % dialog box is closed.
+            h.ls = ls;
+            h.ax = h.ls.Parent;
+            h.fig = h.ax.Parent;
+            
+            oldbuttonup = h.fig.WindowButtonUpFcn;  % Store existing WindowButtonUpFcn
+            h.fig.WindowButtonUpFcn = @AirdropData.stopdrag;  % Set the mouse button up Callback
+            
+            % Create our window lines, set the default line X locations at
+            % 50% of the current axes limits
+            currxlim = xlim(h.ax);
+            axeswidth = currxlim(2) - currxlim(1);
+            linex = axeswidth*0.25;
+            
+            h.dragline = line(ones(1, 2)*linex, ylim(h.ax), 'Color', 'g', ...
+                             'ButtonDownFcn', @(s,e)AirdropData.startdrag(s, h));
+                         
+            % Add appropriate listeners to the X and Y axes to ensure
+            % window lines are visible and the appropriate height
+            listen.x = addlistener(h.ax, 'XLim', 'PostSet', @(s,e)AirdropData.checklinesx(h));
+            listen.y = addlistener(h.ax, 'YLim', 'PostSet', @(s,e)AirdropData.changelinesy(h));
+            
+            % Unless passed a secondary, False argument, use uiwait to 
+            % allow the user to manipulate the axes and window lines as 
+            % desired. Otherwise it is assumed that uiresume is called
+            % elsewhere to unblock execution
+            if nargin == 2 && ~waitboxBool
+                uiwait
+            else
+                uiwait(msgbox('Select Point of Interest, Then Press OK'))
+            end
+            
+            % Set output
+            xidx = find(ls.XData >= h.dragline(1).XData(1), 1);
+            
+            % Clean up
+            delete([listen.x listen.y]);
+            delete(h.dragline);
+            h.fig.WindowButtonUpFcn = oldbuttonup;
         end
         
         
@@ -582,11 +638,14 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
             % Helper function for data windowing, checks the X indices of
             % the vertical lines to make sure they're still within the X
             % axis limits of the data axes object
+            ndraglines = numel(h.dragline);
             currxlim = h.ax.XLim;
             currlinex(1) = h.dragline(1).XData(1);
-            currlinex(2) = h.dragline(2).XData(1);
             
-            
+            if ndraglines == 2
+                currlinex(2) = h.dragline(2).XData(1);
+            end
+                        
             % Set X coordinate of any line outside the axes limits to the
             % axes limit
             if currlinex(1) < currxlim(1)
@@ -597,12 +656,14 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
                 h.dragline(1).XData = [1, 1]*currxlim(2);
             end
             
-            if currlinex(2) < currxlim(1)
-                h.dragline(2).XData = [1, 1]*currxlim(1);
-            end
-            
-            if currlinex(2) > currxlim(2)
-               h.dragline(2).XData = [1, 1]*currxlim(2);
+            if ndraglines == 2
+                if currlinex(2) < currxlim(1)
+                    h.dragline(2).XData = [1, 1]*currxlim(1);
+                end
+                
+                if currlinex(2) > currxlim(2)
+                    h.dragline(2).XData = [1, 1]*currxlim(2);
+                end
             end
             
             % Set X coordinate of any line beyond the boundary of the
@@ -617,13 +678,15 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
                 h.dragline(1).XData = [1, 1]*maxX;
             end
             
-            if currlinex(2) < minX
-                h.dragline(2).XData = [1, 1]*minX;
+            if ndraglines == 2
+                if currlinex(2) < minX
+                    h.dragline(2).XData = [1, 1]*minX;
+                end
+                
+                if currlinex(2) > maxX
+                    h.dragline(2).XData = [1, 1]*maxX;
+                end
             end
-            
-            if currlinex(2) > maxX
-                h.dragline(2).XData = [1, 1]*maxX;
-            end 
         end
         
         
@@ -631,7 +694,10 @@ classdef (Abstract) AirdropData < handle & matlab.mixin.Copyable
             % Helper function for data windowing, sets the height of both
             % vertical lines to the height of the axes object
             h.dragline(1).YData = ylim(h.ax);
-            h.dragline(2).YData = ylim(h.ax);
+            
+            if ndraglines == 2
+                h.dragline(2).YData = ylim(h.ax);
+            end
         end
 
         
